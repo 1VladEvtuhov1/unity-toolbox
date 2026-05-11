@@ -1,0 +1,5 @@
+{
+  "displayName": "Minimal Wrapper",
+  "description": "Thin project-side wrapper for the reusable test center package.",
+  "interactiveImport": true
+}
