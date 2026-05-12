@@ -11,6 +11,7 @@ namespace UnityToolbox.TestCenter
         private static GUIStyle _logContentStyle;
 
         private readonly List<ReusableTestSuiteDefinition> _selectedSuites = new();
+        private ReusableTestCenterRunner _boundRunner;
         private Vector2 _windowScroll;
         private Vector2 _suiteScroll;
         private Vector2 _selectedSuiteScroll;
@@ -27,6 +28,22 @@ namespace UnityToolbox.TestCenter
 
         protected abstract IReadOnlyList<ReusableTestSuiteSection> Sections { get; }
 
+        protected virtual bool HasSuiteConfiguration => true;
+
+        protected virtual bool HasSuiteEntries
+        {
+            get
+            {
+                for (var sectionIndex = 0; sectionIndex < Sections.Count; sectionIndex++)
+                {
+                    if (Sections[sectionIndex].Entries.Length > 0)
+                        return true;
+                }
+
+                return false;
+            }
+        }
+
         protected static void OpenWindow<TWindow>(ReusableTestCenterDefinition definition)
             where TWindow : ReusableTestCenterWindowBase
         {
@@ -37,14 +54,13 @@ namespace UnityToolbox.TestCenter
 
         protected virtual void OnEnable()
         {
-            Runner.EnsureInitialized();
-            Runner.StateChanged += OnStateChanged;
+            RefreshRunnerBinding();
             RefreshLogPreview();
         }
 
         protected virtual void OnDisable()
         {
-            Runner.StateChanged -= OnStateChanged;
+            UnbindRunner();
         }
 
         protected virtual void OnGUI()
@@ -75,6 +91,7 @@ namespace UnityToolbox.TestCenter
             {
                 GUILayout.Label(Definition.ToolbarTitle, EditorStyles.boldLabel);
                 GUILayout.FlexibleSpace();
+                DrawToolbarButtons();
 
                 if (GUILayout.Button("Refresh Logs", EditorStyles.toolbarButton))
                     RefreshLogPreview();
@@ -93,12 +110,17 @@ namespace UnityToolbox.TestCenter
             }
         }
 
+        protected virtual void DrawToolbarButtons()
+        {
+        }
+
         private void DrawStatus()
         {
             EditorGUILayout.LabelField("Run Status", EditorStyles.boldLabel);
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
+                DrawStatusMessages();
                 EditorGUILayout.LabelField("State", Runner.StatusText);
                 EditorGUILayout.LabelField("Current Suite", Runner.CurrentSuiteName);
                 EditorGUILayout.LabelField("Last Result", Runner.LastResultSummary);
@@ -111,6 +133,10 @@ namespace UnityToolbox.TestCenter
             }
         }
 
+        protected virtual void DrawStatusMessages()
+        {
+        }
+
         private void DrawSuites()
         {
             var searchTokens = GetSuiteSearchTokens();
@@ -119,6 +145,18 @@ namespace UnityToolbox.TestCenter
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
+                if (!HasSuiteConfiguration)
+                {
+                    DrawMissingSuiteConfiguration();
+                    return;
+                }
+
+                if (!HasSuiteEntries)
+                {
+                    DrawEmptySuiteConfiguration();
+                    return;
+                }
+
                 DrawSuiteSearchField(searchTokens);
                 DrawSelectedSuitesQueue();
                 _visibleSuiteCount = 0;
@@ -150,6 +188,32 @@ namespace UnityToolbox.TestCenter
 
                 EditorGUILayout.EndScrollView();
             }
+        }
+
+        protected virtual void DrawMissingSuiteConfiguration()
+        {
+            EditorGUILayout.HelpBox(
+                "No suite configuration is available for this window.",
+                MessageType.Info);
+        }
+
+        protected virtual void DrawEmptySuiteConfiguration()
+        {
+            EditorGUILayout.HelpBox(
+                "Suite configuration is loaded, but no suites are defined yet.",
+                MessageType.Info);
+        }
+
+        protected void RefreshRunnerBinding()
+        {
+            if (ReferenceEquals(_boundRunner, Runner))
+                return;
+
+            UnbindRunner();
+
+            _boundRunner = Runner;
+            _boundRunner.EnsureInitialized();
+            _boundRunner.StateChanged += OnStateChanged;
         }
 
         private void DrawSuiteSearchField(IReadOnlyList<string> searchTokens)
@@ -418,6 +482,15 @@ namespace UnityToolbox.TestCenter
         private void OnStateChanged()
         {
             RefreshLogPreview();
+        }
+
+        private void UnbindRunner()
+        {
+            if (_boundRunner == null)
+                return;
+
+            _boundRunner.StateChanged -= OnStateChanged;
+            _boundRunner = null;
         }
 
         private static GUIStyle GetLogContentStyle()

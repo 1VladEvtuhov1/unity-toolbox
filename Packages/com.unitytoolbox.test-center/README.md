@@ -1,6 +1,6 @@
 # Unity Toolbox Test Center
 
-`com.unitytoolbox.test-center` is a reusable editor-only Unity package for running categorized `EditMode` and `PlayMode` test suites from a single custom window.
+`com.unitytoolbox.test-center` is a reusable editor-only Unity package for running categorized `EditMode` and `PlayMode` test suites from a single window.
 
 ## Features
 
@@ -10,21 +10,46 @@
 - latest `EditMode` and `PlayMode` log discovery
 - window state persistence through `SessionState`
 - suite search by display name, category, mode, result file, or description
+- built-in fallback window under `Window/Testing/Unity Toolbox Test Center`
+- onboarding flow when no project-specific configuration exists
 
 ## Package Contents
 
 - `Editor/UnityToolbox.TestCenter.Editor.asmdef`
+- `Editor/ReusableTestCenterConfigurationAsset.cs`
 - `Editor/ReusableTestCenterModels.cs`
 - `Editor/ReusableTestCenterRunner.cs`
+- `Editor/UnityToolboxTestCenterWindow.cs`
 - `Editor/ReusableTestCenterWindowBase.cs`
 
 ## Dependency
 
 The package requires `com.unity.test-framework`.
 
-## Integration
+## Default Window
 
-Create two thin project-side wrappers:
+The package now exposes a built-in menu entry:
+
+- `Window/Testing/Unity Toolbox Test Center`
+
+If the project has no configuration yet, the window still opens and shows onboarding UI instead of failing.
+
+To use the built-in window without writing any wrapper code:
+
+1. create a `ReusableTestCenterConfigurationAsset`
+2. define one or more sections with suite entries
+3. tag tests with the matching category names
+
+You can create the asset from either location:
+
+- the onboarding button inside the window
+- `Assets/Create/Unity Toolbox/Test Center Configuration`
+
+## Project Customization
+
+If a project needs custom sections, alternative menus, or additional UI, keep using a project-side wrapper. The reusable API remains unchanged.
+
+Typical project-side setup:
 
 1. a static catalog that defines suites, sections, and a single `ReusableTestCenterRunner`
 2. an `EditorWindow` inheriting from `ReusableTestCenterWindowBase`
@@ -90,6 +115,16 @@ namespace MyProject.EditorTools.Tests
 }
 ```
 
+## Configuration Asset Contract
+
+Each suite entry in `ReusableTestCenterConfigurationAsset` maps directly to a Unity Test Runner `Filter`:
+
+- `Display Name`: visible button label
+- `Category Name`: NUnit/UTF category used in `Filter.categoryNames`
+- `Mode`: `EditMode` or `PlayMode`
+- `Result File Name`: XML result file name inside the configured results directory
+- `Description`: optional helper text shown in the window
+
 ## Suite Contract
 
 Each `ReusableTestSuiteDefinition` maps directly to a Unity Test Runner `Filter`:
@@ -115,6 +150,8 @@ Default output folder:
 - `Temp/TestResults`
 
 Override it through the `resultsDirectoryRelativePath` constructor argument of `ReusableTestCenterDefinition`.
+
+For the built-in window, the same value is configured on `ReusableTestCenterConfigurationAsset`.
 
 The runner writes:
 

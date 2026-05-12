@@ -1,8 +1,8 @@
 {
   "name": "com.unitytoolbox.test-center",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "displayName": "Unity Toolbox Test Center",
-  "description": "Reusable Unity editor test center for running categorized EditMode and PlayMode suites through the Unity Test Framework.",
+  "description": "Reusable Unity editor test center with a built-in fallback window for running categorized EditMode and PlayMode suites through the Unity Test Framework.",
   "unity": "6000.0",
   "author": {
     "name": "Unity Toolbox"
