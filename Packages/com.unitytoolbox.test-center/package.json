@@ -4,6 +4,15 @@
   "displayName": "Unity Toolbox Test Center",
   "description": "Reusable Unity editor test center with a built-in fallback window for running categorized EditMode and PlayMode suites through the Unity Test Framework.",
   "unity": "6000.0",
+  "files": [
+    "Editor",
+    "Editor.meta",
+    "README.md",
+    "README.md.meta",
+    "Samples~",
+    "Samples~.meta",
+    "package.json"
+  ],
   "author": {
     "name": "Unity Toolbox"
   },
