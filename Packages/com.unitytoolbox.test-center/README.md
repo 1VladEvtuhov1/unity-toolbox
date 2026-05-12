@@ -34,6 +34,8 @@ The package now exposes a built-in menu entry:
 
 If the project has no configuration yet, the window still opens and shows onboarding UI instead of failing.
 
+Runner initialization is deferred until the window binds to it, so window creation itself does not touch `SessionState`.
+
 To use the built-in window without writing any wrapper code:
 
 1. create a `ReusableTestCenterConfigurationAsset`
@@ -158,3 +160,12 @@ The runner writes:
 - `*.xml` result files
 - `EditMode.current` and `PlayMode.current` marker files
 - timestamped `*.log` files
+
+## Package Import Fallback
+
+If Unity 6 keeps importing editor assets from a git package unreliably in your environment, use one of these supported fallbacks:
+
+- embed the package into `Packages/`
+- add it as a local package from disk
+
+This is the recommended operational fallback for editor-only tooling. It keeps the package usable even when a specific Unity version handles git package asset import inconsistently.

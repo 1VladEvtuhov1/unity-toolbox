@@ -19,7 +19,7 @@ namespace UnityToolbox.TestCenter
         private static readonly ReusableTestSuiteSection[] EmptySections = Array.Empty<ReusableTestSuiteSection>();
 
         private ReusableTestCenterDefinition _definition = DefaultDefinition;
-        private ReusableTestCenterRunner _runner = new(DefaultDefinition, EmptySuites);
+        private ReusableTestCenterRunner _runner;
         private ReusableTestSuiteSection[] _sections = EmptySections;
         private ReusableTestCenterConfigurationAsset _configurationAsset;
         private string _configurationAssetPath = string.Empty;
@@ -129,7 +129,7 @@ namespace UnityToolbox.TestCenter
                 _configurationStatusText = configurationResult.StatusText;
                 _definition = definition;
                 _sections = sections;
-                _runner = new ReusableTestCenterRunner(definition, suites);
+                _runner = CreateRunner(definition, suites);
             }
             catch (Exception exception)
             {
@@ -138,7 +138,7 @@ namespace UnityToolbox.TestCenter
                 _configurationStatusText = $"Configuration could not be loaded: {exception.Message}";
                 _definition = DefaultDefinition;
                 _sections = EmptySections;
-                _runner = new ReusableTestCenterRunner(DefaultDefinition, EmptySuites);
+                _runner = CreateRunner(DefaultDefinition, EmptySuites);
             }
         }
 
@@ -149,7 +149,7 @@ namespace UnityToolbox.TestCenter
             _configurationStatusText = statusText;
             _definition = DefaultDefinition;
             _sections = EmptySections;
-            _runner = new ReusableTestCenterRunner(DefaultDefinition, EmptySuites);
+            _runner = CreateRunner(DefaultDefinition, EmptySuites);
         }
 
         private void ApplyWindowPresentation()
@@ -232,6 +232,13 @@ namespace UnityToolbox.TestCenter
 
                 currentPath = nextPath;
             }
+        }
+
+        private static ReusableTestCenterRunner CreateRunner(
+            ReusableTestCenterDefinition definition,
+            ReusableTestSuiteDefinition[] suites)
+        {
+            return new ReusableTestCenterRunner(definition, suites);
         }
 
         private readonly struct ConfigurationAssetSearchResult

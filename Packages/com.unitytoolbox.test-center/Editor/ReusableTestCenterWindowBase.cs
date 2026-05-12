@@ -12,11 +12,13 @@ namespace UnityToolbox.TestCenter
 
         private readonly List<ReusableTestSuiteDefinition> _selectedSuites = new();
         private ReusableTestCenterRunner _boundRunner;
+        private ReusableTestCenterRunner _failedRunner;
         private Vector2 _windowScroll;
         private Vector2 _suiteScroll;
         private Vector2 _selectedSuiteScroll;
         private Vector2 _editLogScroll;
         private Vector2 _playLogScroll;
+        private string _runnerInitializationError = string.Empty;
         private string _suiteSearchText = string.Empty;
         private string _editLogPreview = string.Empty;
         private string _playLogPreview = string.Empty;
@@ -65,7 +67,14 @@ namespace UnityToolbox.TestCenter
 
         protected virtual void OnGUI()
         {
+            RefreshRunnerBinding();
             DrawToolbar();
+
+            if (_boundRunner == null)
+            {
+                DrawRunnerUnavailable();
+                return;
+            }
 
             _windowScroll = EditorGUILayout.BeginScrollView(
                 _windowScroll,
@@ -87,6 +96,8 @@ namespace UnityToolbox.TestCenter
 
         private void DrawToolbar()
         {
+            var runner = _boundRunner;
+
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
                 GUILayout.Label(Definition.ToolbarTitle, EditorStyles.boldLabel);
@@ -99,13 +110,19 @@ namespace UnityToolbox.TestCenter
                 if (GUILayout.Button("Open Test Runner", EditorStyles.toolbarButton))
                     EditorApplication.ExecuteMenuItem("Window/General/Test Runner");
 
-                if (GUILayout.Button("Reveal Results", EditorStyles.toolbarButton))
-                    Runner.RevealResultsDirectory();
-
-                if (GUILayout.Button("Clear Logs", EditorStyles.toolbarButton))
+                using (new EditorGUI.DisabledScope(runner == null))
                 {
-                    if (Runner.ConfirmAndClearLogs())
+                    if (GUILayout.Button("Reveal Results", EditorStyles.toolbarButton))
+                        runner.RevealResultsDirectory();
+                }
+
+                using (new EditorGUI.DisabledScope(runner == null))
+                {
+                    if (GUILayout.Button("Clear Logs", EditorStyles.toolbarButton) &&
+                        runner.ConfirmAndClearLogs())
+                    {
                         RefreshLogPreview();
+                    }
                 }
             }
         }
@@ -116,18 +133,21 @@ namespace UnityToolbox.TestCenter
 
         private void DrawStatus()
         {
+            if (_boundRunner == null)
+                return;
+
             EditorGUILayout.LabelField("Run Status", EditorStyles.boldLabel);
 
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 DrawStatusMessages();
-                EditorGUILayout.LabelField("State", Runner.StatusText);
-                EditorGUILayout.LabelField("Current Suite", Runner.CurrentSuiteName);
-                EditorGUILayout.LabelField("Last Result", Runner.LastResultSummary);
-                EditorGUILayout.LabelField("Last XML", Runner.LastResultFilePath);
+                EditorGUILayout.LabelField("State", _boundRunner.StatusText);
+                EditorGUILayout.LabelField("Current Suite", _boundRunner.CurrentSuiteName);
+                EditorGUILayout.LabelField("Last Result", _boundRunner.LastResultSummary);
+                EditorGUILayout.LabelField("Last XML", _boundRunner.LastResultFilePath);
                 EditorGUILayout.LabelField("Last Failed Tests", EditorStyles.miniBoldLabel);
                 EditorGUILayout.SelectableLabel(
-                    Runner.LastFailedTests,
+                    _boundRunner.LastFailedTests,
                     EditorStyles.textArea,
                     GUILayout.MinHeight(54f));
             }
@@ -139,6 +159,9 @@ namespace UnityToolbox.TestCenter
 
         private void DrawSuites()
         {
+            if (_boundRunner == null)
+                return;
+
             var searchTokens = GetSuiteSearchTokens();
 
             EditorGUILayout.LabelField("Suites", EditorStyles.boldLabel);
@@ -206,14 +229,39 @@ namespace UnityToolbox.TestCenter
 
         protected void RefreshRunnerBinding()
         {
-            if (ReferenceEquals(_boundRunner, Runner))
+            var runner = Runner;
+            if (runner == null)
+            {
+                UnbindRunner();
+                return;
+            }
+
+            if (ReferenceEquals(_boundRunner, runner))
+            {
+                _runnerInitializationError = string.Empty;
+                _failedRunner = null;
+                return;
+            }
+
+            if (ReferenceEquals(_failedRunner, runner))
                 return;
 
             UnbindRunner();
 
-            _boundRunner = Runner;
-            _boundRunner.EnsureInitialized();
-            _boundRunner.StateChanged += OnStateChanged;
+            try
+            {
+                runner.EnsureInitialized();
+                runner.StateChanged += OnStateChanged;
+                _boundRunner = runner;
+                _failedRunner = null;
+                _runnerInitializationError = string.Empty;
+            }
+            catch (Exception exception)
+            {
+                _failedRunner = runner;
+                _runnerInitializationError = $"Runner initialization failed: {exception.Message}";
+                Debug.LogException(exception);
+            }
         }
 
         private void DrawSuiteSearchField(IReadOnlyList<string> searchTokens)
@@ -265,10 +313,10 @@ namespace UnityToolbox.TestCenter
                     EditorGUILayout.LabelField($"Selected Queue ({_selectedSuites.Count})", EditorStyles.miniBoldLabel);
                     GUILayout.FlexibleSpace();
 
-                    using (new EditorGUI.DisabledScope(_selectedSuites.Count == 0 || !Runner.CanRun))
+                    using (new EditorGUI.DisabledScope(_selectedSuites.Count == 0 || !_boundRunner.CanRun))
                     {
                         if (GUILayout.Button("Run Selected In Order", GUILayout.Width(160f)))
-                            Runner.RunSuitesSequentially(_selectedSuites);
+                            _boundRunner.RunSuitesSequentially(_selectedSuites);
                     }
 
                     using (new EditorGUI.DisabledScope(_selectedSuites.Count == 0))
@@ -277,10 +325,10 @@ namespace UnityToolbox.TestCenter
                             _selectedSuites.Clear();
                     }
 
-                    using (new EditorGUI.DisabledScope(!Runner.HasPendingSequentialSuites))
+                    using (new EditorGUI.DisabledScope(!_boundRunner.HasPendingSequentialSuites))
                     {
                         if (GUILayout.Button("Stop Pending", GUILayout.Width(96f)))
-                            Runner.ClearPendingSequentialSuites();
+                            _boundRunner.ClearPendingSequentialSuites();
                     }
                 }
 
@@ -360,10 +408,10 @@ namespace UnityToolbox.TestCenter
                     GUI.FocusControl(null);
                 }
 
-                using (new EditorGUI.DisabledScope(!Runner.CanRun))
+                using (new EditorGUI.DisabledScope(!_boundRunner.CanRun))
                 {
                     if (GUILayout.Button(entry.Suite.DisplayName, GUILayout.Width(220f)))
-                        Runner.RunSuite(entry.Suite);
+                        _boundRunner.RunSuite(entry.Suite);
                 }
 
                 EditorGUILayout.LabelField(entry.Description, EditorStyles.wordWrappedLabel);
@@ -408,9 +456,12 @@ namespace UnityToolbox.TestCenter
 
         private bool IsSuiteSelected(ReusableTestSuiteDefinition suite)
         {
+            if (_boundRunner == null)
+                return false;
+
             for (var i = 0; i < _selectedSuites.Count; i++)
             {
-                if (Runner.SuiteEquals(_selectedSuites[i], suite))
+                if (_boundRunner.SuiteEquals(_selectedSuites[i], suite))
                     return true;
             }
 
@@ -419,9 +470,12 @@ namespace UnityToolbox.TestCenter
 
         private void RemoveSelectedSuite(ReusableTestSuiteDefinition suite)
         {
+            if (_boundRunner == null)
+                return;
+
             for (var i = _selectedSuites.Count - 1; i >= 0; i--)
             {
-                if (Runner.SuiteEquals(_selectedSuites[i], suite))
+                if (_boundRunner.SuiteEquals(_selectedSuites[i], suite))
                     _selectedSuites.RemoveAt(i);
             }
         }
@@ -434,19 +488,22 @@ namespace UnityToolbox.TestCenter
 
         private void DrawLogs()
         {
+            if (_boundRunner == null)
+                return;
+
             EditorGUILayout.LabelField("Logs", EditorStyles.boldLabel);
 
             using (new EditorGUILayout.HorizontalScope())
             {
                 DrawLogPanel(
                     "EditMode Log",
-                    Runner.EditModeLogPath,
+                    _boundRunner.EditModeLogPath,
                     ref _editLogScroll,
                     _editLogPreview);
 
                 DrawLogPanel(
                     "PlayMode Log",
-                    Runner.PlayModeLogPath,
+                    _boundRunner.PlayModeLogPath,
                     ref _playLogScroll,
                     _playLogPreview);
             }
@@ -472,10 +529,30 @@ namespace UnityToolbox.TestCenter
             }
         }
 
+        private void DrawRunnerUnavailable()
+        {
+            EditorGUILayout.Space(8f);
+            DrawStatusMessages();
+
+            var message = string.IsNullOrWhiteSpace(_runnerInitializationError)
+                ? "Test Center runner is not available. Reload the configuration or reopen the window."
+                : _runnerInitializationError;
+
+            EditorGUILayout.HelpBox(message, MessageType.Warning);
+        }
+
         private void RefreshLogPreview()
         {
-            _editLogPreview = Runner.ReadLogTail(Runner.EditModeLogPath);
-            _playLogPreview = Runner.ReadLogTail(Runner.PlayModeLogPath);
+            if (_boundRunner == null)
+            {
+                _editLogPreview = "Runner is not initialized.";
+                _playLogPreview = "Runner is not initialized.";
+                Repaint();
+                return;
+            }
+
+            _editLogPreview = _boundRunner.ReadLogTail(_boundRunner.EditModeLogPath);
+            _playLogPreview = _boundRunner.ReadLogTail(_boundRunner.PlayModeLogPath);
             Repaint();
         }
 

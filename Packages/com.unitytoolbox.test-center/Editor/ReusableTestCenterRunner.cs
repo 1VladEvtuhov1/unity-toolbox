@@ -18,10 +18,7 @@ namespace UnityToolbox.TestCenter
 
         private readonly ReusableTestCenterDefinition _definition;
         private readonly ReusableTestSuiteDefinition[] _allSuites;
-        private readonly TestRunnerApi _api;
-        private readonly CallbacksProxy _callbacks;
         private readonly List<ReusableTestSuiteDefinition> _pendingSequentialSuites = new();
-
         private readonly string _currentSuiteSessionKey;
         private readonly string _statusSessionKey;
         private readonly string _lastResultSummarySessionKey;
@@ -35,6 +32,9 @@ namespace UnityToolbox.TestCenter
         private readonly string _sequentialTotalSessionKey;
         private readonly string _sequentialCompletedSessionKey;
 
+        private bool _isInitialized;
+        private TestRunnerApi _api;
+        private CallbacksProxy _callbacks;
         private string _currentSuiteName = NoneText;
         private string _statusText = IdleStatusText;
         private string _lastResultSummary = NoRunsYetText;
@@ -68,15 +68,6 @@ namespace UnityToolbox.TestCenter
             _sequentialQueueSessionKey = prefix + "SequentialQueue";
             _sequentialTotalSessionKey = prefix + "SequentialTotal";
             _sequentialCompletedSessionKey = prefix + "SequentialCompleted";
-
-            LoadPersistedState();
-
-            _api = ScriptableObject.CreateInstance<TestRunnerApi>();
-            _callbacks = new CallbacksProxy(this);
-            _api.RegisterCallbacks(_callbacks);
-
-            if (_sequentialRunActive && _pendingSequentialSuites.Count > 0 && !_runActive)
-                ScheduleNextSequentialSuite();
         }
 
         public event Action StateChanged;
@@ -103,6 +94,25 @@ namespace UnityToolbox.TestCenter
 
         public void EnsureInitialized()
         {
+            if (_isInitialized)
+                return;
+
+            LoadPersistedState();
+
+            if (_api == null)
+            {
+                var api = ScriptableObject.CreateInstance<TestRunnerApi>();
+                var callbacks = new CallbacksProxy(this);
+                api.RegisterCallbacks(callbacks);
+
+                _api = api;
+                _callbacks = callbacks;
+            }
+
+            if (_sequentialRunActive && _pendingSequentialSuites.Count > 0 && !_runActive)
+                ScheduleNextSequentialSuite();
+
+            _isInitialized = true;
         }
 
         public void RunSuite(ReusableTestSuiteDefinition suite)
@@ -156,6 +166,7 @@ namespace UnityToolbox.TestCenter
 
         public void ClearPendingSequentialSuites()
         {
+            EnsureInitialized();
             _pendingSequentialSuites.Clear();
             _sequentialRunActive = false;
             _sequentialTotal = 0;
